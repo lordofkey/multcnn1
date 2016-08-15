@@ -3,13 +3,11 @@ import socket
 import cv2
 import numpy as np
 import xml.dom.minidom
-import caffe
 import datetime
 import os
 import struct
 
 
-SPATH = '/tmp/caffeServer.d'
 MPATH = '/tmp/cnnserver.sock'
 
 
@@ -31,14 +29,25 @@ class models(object):
         self.type = str(model_content.getAttribute("type"))
         self.model_path = str(model_content.getAttribute("path"))
         if self.type == 'caffe':
+            import caffe
             caffe.set_mode_gpu()
             proto_data = open(self.model_path + 'mean.binaryproto', 'rb').read()
             temp_a = caffe.io.caffe_pb2.BlobProto.FromString(proto_data)
             self.mean = caffe.io.blobproto_to_array(temp_a)[0]
             self.net = caffe.Net(self.model_path + 'deploy.prototxt', self.model_path + 'model.caffemodel', caffe.TEST)
             print 'caffe done!'
+        if self.type == 'tensorflow':
+            import tensorflow as tf
+            ckpt = tf.train.get_checkpoint_state(self.model_path)
+            saver = tf.train.import_meta_graph(ckpt.model_checkpoint_path + '.meta')
+            self.pred = tf.get_collection("pred")[0]
+            self.x = tf.get_collection("x")[0]
+            self.keep_prob = tf.get_collection("keep_prob")[0]
+            self.sess = tf.Session()
+            saver.restore(self.sess,ckpt.model_checkpoint_path)
+            print 'tf done!'
         else:
-            print 'there`s no caffe!', self.type
+            print 'can not recognized the frame!'
     def initlabel(self):
         f = open(self.model_path + 'labels.txt', 'r')
         while True:
@@ -53,15 +62,13 @@ class models(object):
         f.close()
 
 
+
+
 m_date = str(datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S"))
-
-
-m_model = models(0)
+m_model = models(1)
 width = 227
 height = 227
 imglen = width * height
-
-
 
 ca_num = 0
 
@@ -101,6 +108,7 @@ while True:
     img = np.array(im, np.uint8)
     img = img.reshape(height, width)
     m_rlt = ''
+    cv2.imwrite('test.jpg', img)
     if m_model.type == 'caffe':
         img_in = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
         img_in = np.transpose(img_in, [2, 0, 1])
@@ -110,5 +118,11 @@ while True:
         output = m_model.net.forward()
         predictions = output['prob']
         ca_num += 1
+    if m_model.type == 'tensorflow':
+        img_in = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+        img_in = img_in.astype(np.float32)
+        img_in /= 255
+        predictions = m_model.sess.run(m_model.pred, feed_dict={m_model.x: [img_in], m_model.keep_prob: 1.})
+    m_rlt = m_model.labels[np.argmax(predictions)]
 s.close()
 conn.close()
