@@ -4,18 +4,21 @@ import cv2
 import numpy as np
 import xml.dom.minidom
 import datetime
-import os
+import os,sys
 import struct
+import commands
 
 
 MPATH = '/tmp/cnnserver.sock'
-
+SAVE_IMG = 1
+picFolder = '0'
 
 
 class models(object):
     def __init__(self, num = 0):
         self.name = ''
         self.type = ''
+        self.labels = []
         self.tf_param = []  #pred, x, keep_prob
         self.initmodel(num)
         self.initlabel()
@@ -56,7 +59,7 @@ class models(object):
             # if SAVE_IMG:
                 # commands.getstatusoutput('mkdir -p pic/' + model.name + '/' + m_date + '/' + line)
             if line:
-                self.labels = line
+                self.labels.append(line)
             else:
                 break
         f.close()
@@ -65,7 +68,10 @@ class models(object):
 
 
 m_date = str(datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S"))
-m_model = models(1)
+# mn = int(sys.argv[1])
+mn = int(0)
+print mn
+m_model = models(mn)
 width = 227
 height = 227
 imglen = width * height
@@ -108,7 +114,6 @@ while True:
     img = np.array(im, np.uint8)
     img = img.reshape(height, width)
     m_rlt = ''
-    cv2.imwrite('test.jpg', img)
     if m_model.type == 'caffe':
         img_in = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
         img_in = np.transpose(img_in, [2, 0, 1])
@@ -124,5 +129,10 @@ while True:
         img_in /= 255
         predictions = m_model.sess.run(m_model.pred, feed_dict={m_model.x: [img_in], m_model.keep_prob: 1.})
     m_rlt = m_model.labels[np.argmax(predictions)]
+
+    if(0 == ca_num % 2000):
+        picFolder = str(ca_num)
+    if SAVE_IMG:
+        commands.getstatusoutput('mkdir -p pic/' + m_model.name + '/' + m_date + '/' + m_rlt + '/' + picFolder)
+        cv2.imwrite('pic/' + m_model.name + '/' + m_date + '/' + m_rlt + '/' + picFolder + '/' + str(ca_num) + '.jpg', img)
 s.close()
-conn.close()

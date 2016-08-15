@@ -13,7 +13,7 @@ import os
 import time
 
 Qcon = Queue.Queue(30)
-
+listmutex = threading.Lock()
 
 SPATH = '/tmp/caffeServer.d'
 MPATH = '/tmp/cnnserver.sock'
@@ -30,8 +30,12 @@ def imgpro(conn, model):
             conn.sendall(img_in.data.__str__())
         except:
             conn.close()
-            model.flag = 0
-            break
+            listmutex.acquire()
+            modellist.remove(model)
+            listmutex.release()
+            time.sleep(1)
+            del model
+            return
 
 class modelpro():
     def __init__(self,conn):
@@ -80,8 +84,11 @@ def receivedata():
         img = np.fromstring(data,dtype=np.uint8)
         img = img.reshape(height,width)
 
-        if(modellist[0].flag == 1):
-            modellist[0].qimpro.put((img, process_num))
+        listmutex.acquire()
+        for model in modellist:
+            model.qimpro.put((img, process_num))
+            break
+        listmutex.release()
         ##################################################################################
         m_rlt = ''
         try:
@@ -98,9 +105,13 @@ def updateshow():
         os.system('clear')
         print '################################################################################'
         print '#      接收列队负载：', connum
+        serlist = list()
+        listmutex.acquire()
         for model in modellist:
-            if model.flag == 1:
-                print '#     ', model.name, '服务器负载：', model.qimpro.qsize()
+            serlist.append((model.name, model.qimpro.qsize()))
+        listmutex.release()
+        for ser in serlist:
+            print '#      服务器', ser[0], '负载：', ser[1]
         print '#        客户机地址：', addr
 
 
@@ -122,7 +133,8 @@ def cnnadd():
     s.listen(1)
     while True:
         conn,addr = s.accept()
-        modellist.append(modelpro(conn))
+        tmp = modelpro(conn)
+        modellist.append(tmp)
 
 
 
