@@ -8,9 +8,7 @@ import datetime
 import os
 import struct
 
-IMG_WIDTH = 227
-IMG_HEIGHT = 227
-IMG_LEN = IMG_WIDTH*IMG_HEIGHT
+
 SPATH = '/tmp/caffeServer.d'
 MPATH = '/tmp/cnnserver.sock'
 
@@ -59,6 +57,10 @@ m_date = str(datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S"))
 
 
 m_model = models(0)
+width = 227
+height = 227
+imglen = width * height
+
 
 
 ca_num = 0
@@ -67,23 +69,14 @@ s = socket.socket(socket.AF_UNIX)
 s.connect(MPATH)
 name = m_model.name
 name_len = len(name)
-data = struct.pack('=i'+str(name_len)+'s3i', name_len, name, 227, 227, 3)
+data = struct.pack('=i'+str(name_len)+'s3i', name_len, name, width, height, 3)
 s.sendall(data)
 print "send all"
-s.close()
+data = s.recv(20)
+if(data == 'connect secceed'):
+    print 'secceed'
 
 
-
-
-
-
-s = socket.socket(socket.AF_UNIX)
-if os.path.exists(SPATH):
-   os.unlink(SPATH)
-s.bind(SPATH)
-s.listen(1)
-
-conn, addr = s.accept()
 pronum = 0
 stime = datetime.datetime.now()
 while True:
@@ -95,18 +88,18 @@ while True:
         print 'fps:', fps
     recv_size = 0
     im = []
-    while recv_size < IMG_LEN:
-        if IMG_LEN - recv_size > 10240:
-            temp_recv = conn.recv(10240)
+    while recv_size < imglen:
+        if imglen - recv_size > 10240:
+            temp_recv = s.recv(10240)
             data = list(struct.unpack(str(len(temp_recv)) + 'B', temp_recv))
             im.extend(data)
         else:
-            temp_recv = conn.recv(IMG_LEN - recv_size)
+            temp_recv = s.recv(imglen - recv_size)
             data = list(struct.unpack(str(len(temp_recv)) + 'B', temp_recv))
             im.extend(data)
         recv_size += len(data)
     img = np.array(im, np.uint8)
-    img = img.reshape(IMG_HEIGHT, IMG_WIDTH)
+    img = img.reshape(height, width)
     m_rlt = ''
     if m_model.type == 'caffe':
         img_in = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)

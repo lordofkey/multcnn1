@@ -14,21 +14,40 @@ import time
 
 Qcon = Queue.Queue(30)
 
-Qs = list()
 
-IMG_WIDTH = 227
-IMG_HEIGHT = 227
-IMG_LEN = IMG_WIDTH*IMG_HEIGHT
 SPATH = '/tmp/caffeServer.d'
 MPATH = '/tmp/cnnserver.sock'
 addr = ''
 
+
+def imgpro(conn, model):
+    conn.sendall("connect secceed")
+    while True:
+        try:
+            tmp = model.qimpro.get()
+            img_in = tmp[0]
+            img_in = cv2.resize(img_in, (model.width, model.height))
+            conn.sendall(img_in.data.__str__())
+        except:
+            conn.close()
+            model.flag = 0
+            break
+
 class modelpro():
-    self.
-
-
-
-
+    def __init__(self,conn):
+        self.initconnect(conn)
+        self.qimpro = Queue.Queue()
+        sthread = threading.Thread(target=imgpro, args=(conn, self))
+        sthread.setDaemon(True)
+        sthread.start()
+        self.flag = 1
+    def initconnect(self,conn):
+        data = conn.recv(4)
+        num = struct.unpack('i',data)[0]  #字符字节数
+        data = conn.recv(num)
+        self.name = struct.unpack(str(num) + 's', data)[0]
+        data = conn.recv(12)
+        self.width, self.height, self.chanel = struct.unpack('3i',data)
 
 
 def receivedata():
@@ -61,7 +80,8 @@ def receivedata():
         img = np.fromstring(data,dtype=np.uint8)
         img = img.reshape(height,width)
 
-        Qs[0].put((img_in, process_num))
+        if(modellist[0].flag == 1):
+            modellist[0].qimpro.put((img, process_num))
         ##################################################################################
         m_rlt = ''
         try:
@@ -69,14 +89,6 @@ def receivedata():
         except:
             continue
         conn.close()
-
-def imgpro(conn, qs, width, height, chanel):
-    conn.sendall("connect secceed")
-    while True:
-        tmp = qs.get()
-        img_in = tmp[0]
-        img_in = cv2.resize(img_in, (width, height))
-        conn.sendall(img_in.data.__str__())
 
 
 def updateshow():
@@ -86,38 +98,10 @@ def updateshow():
         os.system('clear')
         print '################################################################################'
         print '#      接收列队负载：', connum
-        print '#      处理列队负载：', impronum
+        for model in modellist:
+            if model.flag == 1:
+                print '#     ', model.name, '服务器负载：', model.qimpro.qsize()
         print '#        客户机地址：', addr
-
-
-def cnnadd():
-    s = socket.socket(socket.AF_UNIX)
-    if os.path.exists(MPATH):
-        os.unlink(MPATH)
-    s.bind(MPATH)
-    s.listen(1)
-    while True:
-        try:
-            conn,addr = s.accept()
-            data = conn.recv(4)
-            num = struct.unpack('i',data)[0]  #字符字节数
-            print num
-            data = conn.recv(num)
-            name = struct.unpack(str(num) + 's', data)[0]
-            print u'模型名称', name
-            data = conn.recv(12)
-            width, height, chanel = struct.unpack('3i',data)
-            print width, height, chanel
-            tmpq = Queue.Queue()
-            Qs.append(tmpq)
-            sthread = threading.Thread(target=impro, args=(conn, tmpq, width, height, chanel))
-            sthread = setDaemon(True)
-            sthread.start()
-        except:
-            print "model连接失败"
-
-
-
 
 
 HOST = '0.0.0.0'
@@ -126,19 +110,29 @@ PARAM_LEN = 128
 
 SAVE_IMG = 1
 picFolder = ''
+modellist = list()
 
 m_date = str(datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S"))
 
+def cnnadd():
+    s = socket.socket(socket.AF_UNIX)
+    if os.path.exists(MPATH):
+        os.unlink(MPATH)
+    s.bind(MPATH)
+    s.listen(1)
+    while True:
+        conn,addr = s.accept()
+        modellist.append(modelpro(conn))
 
 
-#thread = threading.Thread(target=imgpro)
-#sthread.setDaemon(True)
-#sthread.start()
 
 sthread = threading.Thread(target=cnnadd)
 sthread.setDaemon(True)
 sthread.start()
 
+sthread = threading.Thread(target=updateshow)
+sthread.setDaemon(True)
+sthread.start()
 
 
 for i in range(10):
