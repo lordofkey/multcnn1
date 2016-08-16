@@ -9,7 +9,10 @@ import struct
 import commands
 
 
-MPATH = '/tmp/cnnserver.sock'
+
+innerhost = "172.1.10.134"
+innerport = 9231
+
 SAVE_IMG = 1
 picFolder = '0'
 
@@ -68,8 +71,8 @@ class models(object):
 
 
 m_date = str(datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S"))
-# mn = int(sys.argv[1])
-mn = int(0)
+mn = int(sys.argv[1])
+#mn = int(0)
 print mn
 m_model = models(mn)
 width = 227
@@ -78,8 +81,8 @@ imglen = width * height
 
 ca_num = 0
 
-s = socket.socket(socket.AF_UNIX)
-s.connect(MPATH)
+s = socket.socket()
+s.connect((innerhost,innerport))
 name = m_model.name
 name_len = len(name)
 data = struct.pack('=i'+str(name_len)+'s3i', name_len, name, width, height, 3)

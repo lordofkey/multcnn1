@@ -15,8 +15,10 @@ import time
 Qcon = Queue.Queue(30)
 listmutex = threading.Lock()
 
-SPATH = '/tmp/caffeServer.d'
-MPATH = '/tmp/cnnserver.sock'
+
+innerhost = '0.0.0.0'
+innerport = 9231
+
 addr = ''
 
 
@@ -56,20 +58,26 @@ class modelpro():
 
 def receivedata():
     while True:
-        tmp = Qcon.get()
-        conn = tmp[0]
-        process_num = tmp[1]
-        param = conn.recv(PARAM_LEN)
+        try:
+            tmp = Qcon.get()
+            conn = tmp[0]
+            process_num = tmp[1]
+            param = conn.recv(PARAM_LEN)
+        except:
+            continue
         ############################################
         try:
             conn.sendall('s')
         except:
             continue
-        width = struct.unpack('L', conn.recv(8))[0]
-        height = struct.unpack('L', conn.recv(8))[0]
-        file_size = width * height
-        recv_size = 0
-        data = ''
+        try:
+            width = struct.unpack('L', conn.recv(8))[0]
+            height = struct.unpack('L', conn.recv(8))[0]
+            file_size = width * height
+            recv_size = 0
+            data = ''
+        except:
+            continue
         try:
             while recv_size < file_size:
                 if file_size - recv_size > 10240:
@@ -86,8 +94,9 @@ def receivedata():
 
         listmutex.acquire()
         for model in modellist:
-            model.qimpro.put((img, process_num))
-            break
+            if(model.name[:4] == param[:4]):
+                model.qimpro.put((img, process_num))
+                break
         listmutex.release()
         ##################################################################################
         m_rlt = ''
@@ -126,15 +135,17 @@ modellist = list()
 m_date = str(datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S"))
 
 def cnnadd():
-    s = socket.socket(socket.AF_UNIX)
-    if os.path.exists(MPATH):
-        os.unlink(MPATH)
-    s.bind(MPATH)
+    s = socket.socket()
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    s.bind((innerhost,innerport))
     s.listen(1)
     while True:
         conn,addr = s.accept()
-        tmp = modelpro(conn)
-        modellist.append(tmp)
+        try:
+            tmp = modelpro(conn)
+            modellist.append(tmp)
+        except:
+            continue
 
 
 
@@ -142,9 +153,9 @@ sthread = threading.Thread(target=cnnadd)
 sthread.setDaemon(True)
 sthread.start()
 
-sthread = threading.Thread(target=updateshow)
-sthread.setDaemon(True)
-sthread.start()
+#sthread = threading.Thread(target=updateshow)
+#sthread.setDaemon(True)
+#sthread.start()
 
 
 for i in range(10):
