@@ -42,14 +42,15 @@ class models(object):
             self.mean = caffe.io.blobproto_to_array(temp_a)[0]
             self.net = caffe.Net(self.model_path + 'deploy.prototxt', self.model_path + 'model.caffemodel', caffe.TEST)
             print 'caffe done!'
-        if self.type == 'tensorflow':
+        elif self.type == 'tensorflow':
             import tensorflow as tf
             ckpt = tf.train.get_checkpoint_state(self.model_path)
             saver = tf.train.import_meta_graph(ckpt.model_checkpoint_path + '.meta')
             self.pred = tf.get_collection("pred")[0]
             self.x = tf.get_collection("x")[0]
             self.keep_prob = tf.get_collection("keep_prob")[0]
-            self.sess = tf.Session()
+            gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction = 0.1)
+            self.sess = tf.Session(config = tf.ConfigProto(gpu_options = gpu_options))
             saver.restore(self.sess,ckpt.model_checkpoint_path)
             print 'tf done!'
         else:
