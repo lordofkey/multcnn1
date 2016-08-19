@@ -3,3 +3,4 @@ pic/
 .idea/
 *~
 *.jpg
+*.pyc

@@ -13,7 +13,7 @@ import commands
 innerhost = "172.1.10.134"
 innerport = 9231
 
-SAVE_IMG = 1
+SAVE_IMG = 0
 picFolder = '0'
 
 
