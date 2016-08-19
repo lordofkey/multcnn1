@@ -50,7 +50,7 @@ class models(object):
             self.x = tf.get_collection("x")[0]
             self.keep_prob = tf.get_collection("keep_prob")[0]
             self.sess = tf.Session()
-            saver.restore(self.sess,ckpt.model_checkpoint_path)
+            saver.restore(self.sess, ckpt.model_checkpoint_path)
             print 'tf done!'
         else:
             print 'can not recognized the frame!'
