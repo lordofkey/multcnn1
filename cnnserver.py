@@ -2,7 +2,6 @@
 import socket
 import numpy as np
 import struct
-import datetime
 import Queue
 import threading
 import os

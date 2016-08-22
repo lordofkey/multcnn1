@@ -4,17 +4,21 @@ import cv2
 import numpy as np
 import xml.dom.minidom
 import datetime
-import os,sys
+import sys
 import struct
 import commands
 
 
-
-innerhost = "172.1.10.134"
+innerhost = "172.1.10.133"
 innerport = 9231
 
 SAVE_IMG = 0
 picFolder = '0'
+
+
+class CycCheck(Exception):
+    def __init__(self):
+        Exception.__init__(self)
 
 
 class models(object):
@@ -69,11 +73,41 @@ class models(object):
         f.close()
 
 
+def receiveimg(s, imglen):
+    data = ''
+    recv_size = 0
+    while recv_size < imglen:
+        if imglen - recv_size > 10240:
+            temp_recv = s.recv(10240)
+            data += temp_recv
+        else:
+            temp_recv = s.recv(imglen - recv_size)
+            data += temp_recv
+        recv_size = len(data)
+        if recv_size == 14:
+            if data == 'are you there?':
+                s.sendall('yes')
+                raise CycCheck
+        return data
 
+
+class FpsCheck(object):
+    def __init__(self, tickt=10):
+        self.stime = datetime.datetime.now()
+        self.pronum = 0
+        self.tick = tickt
+
+    def process(self):
+        self.pronum += 1
+        if self.pronum >= self.tick:
+            self.pronum = 0
+            fps = (self.tick-1)/((datetime.datetime.now() - self.stime).total_seconds())
+            self.stime = datetime.datetime.now()
+            print 'fps:', fps
 
 m_date = str(datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S"))
 mn = int(sys.argv[1])
-#mn = int(0)
+
 print mn
 m_model = models(mn)
 width = 227
@@ -88,34 +122,20 @@ name = m_model.name
 name_len = len(name)
 data = struct.pack('=i'+str(name_len)+'s3i', name_len, name, width, height, 3)
 s.sendall(data)
-print "send all"
 data = s.recv(20)
-if(data == 'connect secceed'):
+if data == 'connect secceed':
     print 'secceed'
 
-
-pronum = 0
-stime = datetime.datetime.now()
+fps = FpsCheck()
 while True:
-    pronum += 1
-    if pronum >= 10:
-        pronum = 0
-        fps = 9/((datetime.datetime.now() - stime).total_seconds())
-        stime = datetime.datetime.now()
-        print 'fps:', fps
-    recv_size = 0
-    im = []
-    while recv_size < imglen:
-        if imglen - recv_size > 10240:
-            temp_recv = s.recv(10240)
-            data = list(struct.unpack(str(len(temp_recv)) + 'B', temp_recv))
-            im.extend(data)
-        else:
-            temp_recv = s.recv(imglen - recv_size)
-            data = list(struct.unpack(str(len(temp_recv)) + 'B', temp_recv))
-            im.extend(data)
-        recv_size += len(data)
-    img = np.array(im, np.uint8)
+    try:
+        data = receiveimg(s, imglen)
+    except CycCheck:
+        continue
+    except:
+        break
+
+    img = np.fromstring(data, dtype=np.uint8)
     img = img.reshape(height, width)
     m_rlt = ''
     if m_model.type == 'caffe':
@@ -133,10 +153,12 @@ while True:
         img_in /= 255
         predictions = m_model.sess.run(m_model.pred, feed_dict={m_model.x: [img_in], m_model.keep_prob: 1.})
     m_rlt = m_model.labels[np.argmax(predictions)]
-
     if(0 == ca_num % 2000):
         picFolder = str(ca_num)
     if SAVE_IMG:
         commands.getstatusoutput('mkdir -p pic/' + m_model.name + '/' + m_date + '/' + m_rlt + '/' + picFolder)
         cv2.imwrite('pic/' + m_model.name + '/' + m_date + '/' + m_rlt + '/' + picFolder + '/' + str(ca_num) + '.jpg', img)
+
+    buf = struct.pack('L', 1)
+    s.sendall(buf)
 s.close()

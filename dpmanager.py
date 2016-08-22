@@ -17,6 +17,7 @@ class ModelPro:
         sthread = threading.Thread(target=self.imgpro)
         sthread.setDaemon(True)
         sthread.start()
+
     def initconnect(self, conn):
         data = conn.recv(4)
         num = struct.unpack('i', data)[0]  # 字符字节数
@@ -26,15 +27,35 @@ class ModelPro:
         self.width, self.height, self.chanel = struct.unpack('3i', data)
 
     def imgpro(self):
-        self.conn.sendall("connect secceed")
+        try:
+            self.conn.sendall("connect secceed")
+        except:
+            self.conn.close()
+            self.flag = 0
+            return
+
         while True:
             try:
-                tmp = self.qimpro.get()
+                tmp = self.qimpro.get(block=True, timeout=1)
                 img_in = tmp[0]
                 img_in = cv2.resize(img_in, (self.width, self.height))
                 self.conn.sendall(img_in.data.__str__())
+            except Queue.Empty:
+                self.conn.sendall('are you there?')
+                data = self.conn.recv(3)
+                if data == 'yes':
+                    continue
+                else:
+                    break
             except:
                 break
+            try:
+                temp_recv = self.conn.recv(8)
+                ind = struct.unpack('L', temp_recv)
+            except:
+                break
+            print ind
+####################################################################加入返回列队
         self.conn.close()
         self.flag = 0
         return
