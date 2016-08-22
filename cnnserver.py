@@ -22,9 +22,7 @@ mmanager = dpmanager.ModelManage(inner_host, inner_port)
 def receivedata():
     while True:
         try:
-            tmp = Qcon.get()
-            conn = tmp[0]
-            process_num = tmp[1]
+            conn = Qcon.get()
             param = conn.recv(PARAM_LEN)
         except:
             continue
@@ -55,14 +53,8 @@ def receivedata():
             continue
         img = np.fromstring(data, dtype=np.uint8)
         img = img.reshape(height, width)
-        mmanager.put(param, img, process_num)
+        mmanager.put(param, conn, img)
         ##################################################################################
-        m_rlt = ''
-        try:
-            conn.sendall(m_rlt)
-        except:
-            continue
-        conn.close()
 
 
 def updateshow():
@@ -93,11 +85,9 @@ s = socket.socket()
 s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 s.bind((HOST, PORT))
 s.listen(1)
-process_num = 0
 while True:
     conn, addr = s.accept()
-    Qcon.put((conn, process_num))
-    process_num += 1
+    Qcon.put(conn)
 
 
 

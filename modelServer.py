@@ -158,7 +158,5 @@ while True:
     if SAVE_IMG:
         commands.getstatusoutput('mkdir -p pic/' + m_model.name + '/' + m_date + '/' + m_rlt + '/' + picFolder)
         cv2.imwrite('pic/' + m_model.name + '/' + m_date + '/' + m_rlt + '/' + picFolder + '/' + str(ca_num) + '.jpg', img)
-
-    buf = struct.pack('L', 1)
-    s.sendall(buf)
+    s.sendall(m_rlt)
 s.close()

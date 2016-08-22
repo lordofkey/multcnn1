@@ -38,6 +38,7 @@ class ModelPro:
             try:
                 tmp = self.qimpro.get(block=True, timeout=1)
                 img_in = tmp[0]
+                conc = tmp[1]
                 img_in = cv2.resize(img_in, (self.width, self.height))
                 self.conn.sendall(img_in.data.__str__())
             except Queue.Empty:
@@ -48,11 +49,13 @@ class ModelPro:
                 else:
                     break
             except:
+                conc.sendall("failed")
+                conc.close()
                 break
-
             try:
-                temp_recv = self.conn.recv(8)
-                ind = struct.unpack('Q', temp_recv)
+                temp_recv = self.conn.recv(128)
+                conc.sendall(temp_recv)
+                conc.close()
             except:
                 break
 ####################################################################加入返回列队
@@ -96,12 +99,12 @@ class ModelManage:
                     break
             self.listmutex.release()
 
-    def put(self, model_name, img, process_num):
+    def put(self, model_name, conn, img):
         self.listmutex.acquire()
         for model in self.modellist:
             if model.name[:4] == model_name[:4]:
                 if model.qimpro.qsize() < QMAX:
-                    model.qimpro.put((img, process_num))
+                    model.qimpro.put((img, conn))
                     self.listmutex.release()
                     return True
         self.listmutex.release()
