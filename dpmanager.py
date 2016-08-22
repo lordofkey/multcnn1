@@ -17,6 +17,7 @@ class ModelPro:
         sthread = threading.Thread(target=self.imgpro)
         sthread.setDaemon(True)
         sthread.start()
+
     def initconnect(self, conn):
         data = conn.recv(4)
         num = struct.unpack('i', data)[0]  # 字符字节数
@@ -26,15 +27,34 @@ class ModelPro:
         self.width, self.height, self.chanel = struct.unpack('3i', data)
 
     def imgpro(self):
-        self.conn.sendall("connect secceed")
+        try:
+            self.conn.sendall("connect secceed")
+        except:
+            self.conn.close()
+            self.flag = 0
+            return
         while True:
             try:
-                tmp = self.qimpro.get()
+                tmp = self.qimpro.get(block=True, timeout=1)
                 img_in = tmp[0]
+                conc = tmp[1]
                 img_in = cv2.resize(img_in, (self.width, self.height))
                 self.conn.sendall(img_in.data.__str__())
+                temp_recv = self.conn.recv(128)
+                conc.sendall(temp_recv)
+                conc.close()
+            except Queue.Empty:
+                self.conn.sendall('are you there?')
+                data = self.conn.recv(3)
+                if data == 'yes':
+                    continue
+                else:
+                    break
             except:
+                conc.sendall("failed")
+                conc.close()
                 break
+####################################################################加入返回列队
         self.conn.close()
         self.flag = 0
         return
@@ -67,23 +87,40 @@ class ModelManage:
 
     def cnn_destroy(self):
         while True:
-            time.sleep(1)
+            time.sleep(0.5)
             self.listmutex.acquire()
             for model in self.modellist:
                 if model.flag == 0:
                     self.modellist.remove(model)
+                    model_rm = model
                     break
             self.listmutex.release()
+            try:
+                while True:
+                    tmp = model_rm.qimpro.get(block=False)
+                    conc = tmp[1]
+                    conc.sendall("failed")
+                    conc.close()
+            except:
+                continue
 
-    def put(self, model_name, img, process_num):
+    def put(self, model_name, conn, img):
         self.listmutex.acquire()
         for model in self.modellist:
             if model.name[:4] == model_name[:4]:
                 if model.qimpro.qsize() < QMAX:
-                    model.qimpro.put((img, process_num))
+                    model.qimpro.put((img, conn))
                     self.listmutex.release()
                     return True
         self.listmutex.release()
         return False
+
+    def checkload(self):
+        qlist = list()
+        self.listmutex.acquire()
+        for model in self.modellist:
+            qlist.append((model.name, model.qimpro.qsize()))
+        self.listmutex.release()
+        return qlist
 
 

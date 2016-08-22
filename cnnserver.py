@@ -2,7 +2,6 @@
 import socket
 import numpy as np
 import struct
-import datetime
 import Queue
 import threading
 import os
@@ -23,9 +22,7 @@ mmanager = dpmanager.ModelManage(inner_host, inner_port)
 def receivedata():
     while True:
         try:
-            tmp = Qcon.get()
-            conn = tmp[0]
-            process_num = tmp[1]
+            conn = Qcon.get()
             param = conn.recv(PARAM_LEN)
         except:
             continue
@@ -56,35 +53,29 @@ def receivedata():
             continue
         img = np.fromstring(data, dtype=np.uint8)
         img = img.reshape(height, width)
-        mmanager.put(param, img, process_num)
-        ##################################################################################
-        m_rlt = ''
-        try:
-            conn.sendall(m_rlt)
-        except:
+        if mmanager.put(param, conn, img):
             continue
+        conn.sendall('failed')
         conn.close()
+        ##################################################################################
 
 
 def updateshow():
     while True:
-        connum = Qcon.qsize()
         time.sleep(0.2)
+        connum = Qcon.qsize()
+        serlist = mmanager.checkload()
         os.system('clear')
+
         print '################################################################################'
         print '#      接收列队负载：', connum
-        serlist = list()
-        listmutex.acquire()
-        for model in modellist:
-            serlist.append((model.name, model.qimpro.qsize()))
-        listmutex.release()
         for ser in serlist:
             print '#      服务器', ser[0], '负载：', ser[1]
 
 
-# sthread = threading.Thread(target=updateshow)
-# sthread.setDaemon(True)
-# sthread.start()
+sthread = threading.Thread(target=updateshow)
+sthread.setDaemon(True)
+sthread.start()
 
 
 for i in range(100):
@@ -97,11 +88,9 @@ s = socket.socket()
 s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 s.bind((HOST, PORT))
 s.listen(1)
-process_num = 0
 while True:
     conn, addr = s.accept()
-    Qcon.put((conn, process_num))
-    process_num += 1
+    Qcon.put(conn)
 
 
 
