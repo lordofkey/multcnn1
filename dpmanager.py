@@ -33,6 +33,7 @@ class ModelPro:
             self.conn.close()
             self.flag = 0
             return
+
         while True:
             try:
                 tmp = self.qimpro.get(block=True, timeout=1)
