@@ -90,6 +90,7 @@ def receiveimg(s, imglen):
                 raise CycCheck
     return data
 
+
 class FpsCheck(object):
     def __init__(self, tickt=10):
         self.stime = datetime.datetime.now()
