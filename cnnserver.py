@@ -67,23 +67,20 @@ def receivedata():
 
 def updateshow():
     while True:
-        connum = Qcon.qsize()
         time.sleep(0.2)
+        connum = Qcon.qsize()
+        serlist = mmanager.checkload()
         os.system('clear')
+
         print '################################################################################'
         print '#      接收列队负载：', connum
-        serlist = list()
-        listmutex.acquire()
-        for model in modellist:
-            serlist.append((model.name, model.qimpro.qsize()))
-        listmutex.release()
         for ser in serlist:
             print '#      服务器', ser[0], '负载：', ser[1]
 
 
-# sthread = threading.Thread(target=updateshow)
-# sthread.setDaemon(True)
-# sthread.start()
+sthread = threading.Thread(target=updateshow)
+sthread.setDaemon(True)
+sthread.start()
 
 
 for i in range(100):

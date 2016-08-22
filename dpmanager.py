@@ -49,12 +49,12 @@ class ModelPro:
                     break
             except:
                 break
+
             try:
                 temp_recv = self.conn.recv(8)
-                ind = struct.unpack('L', temp_recv)
+                ind = struct.unpack('Q', temp_recv)
             except:
                 break
-            print ind
 ####################################################################加入返回列队
         self.conn.close()
         self.flag = 0
@@ -106,5 +106,13 @@ class ModelManage:
                     return True
         self.listmutex.release()
         return False
+
+    def checkload(self):
+        qlist = list()
+        self.listmutex.acquire()
+        for model in self.modellist:
+            qlist.append((model.name, model.qimpro.qsize()))
+        self.listmutex.release()
+        return qlist
 
 
