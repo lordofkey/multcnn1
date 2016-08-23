@@ -7,40 +7,33 @@ import threading
 import os
 import time
 import dpmanager
+import logging
 
+logging.basicConfig(filename='cnnserver.log', filemode='a')
 Qcon = Queue.Queue(200)
 HOST = '0.0.0.0'
 PORT = 8145
 inner_host = '0.0.0.0'
 inner_port = 9231
-
 PARAM_LEN = 128
 SAVE_IMG = 1
 
-mmanager = dpmanager.ModelManage(inner_host, inner_port)
-
+try:
+    mmanager = dpmanager.ModelManage(inner_host, inner_port)
+except:
+    logging.exception("Exception Logged")
+#接收线程
 def receivedata():
     while True:
         try:
             conn = Qcon.get()
             param = conn.recv(PARAM_LEN)
-        except:
-            continue
-
-        ############################################
-        try:
             conn.sendall('s')
-        except:
-            continue
-        try:
             width = struct.unpack('Q', conn.recv(8))[0]
             height = struct.unpack('Q', conn.recv(8))[0]
-        except:
-            continue
-        file_size = width * height
-        recv_size = 0
-        data = ''
-        try:
+            file_size = width * height
+            recv_size = 0
+            data = ''
             while recv_size < file_size:
                 if file_size - recv_size > 10240:
                     temp_recv = conn.recv(10240)
@@ -49,14 +42,17 @@ def receivedata():
                     temp_recv = conn.recv(file_size - recv_size)
                     data += temp_recv
                 recv_size = len(data)
+            img = np.fromstring(data, dtype=np.uint8)
+            img = img.reshape(height, width)
+            mmanager.put(param, conn, img)
+        except dpmanager.NoModelResource:           
+            conn.sendall('failed')
+            conn.close()
+            continue
         except:
+            conn.close()
+            logging.exception("err receiving from client")
             continue
-        img = np.fromstring(data, dtype=np.uint8)
-        img = img.reshape(height, width)
-        if mmanager.put(param, conn, img):
-            continue
-        conn.sendall('failed')
-        conn.close()
         ##################################################################################
 
 
@@ -72,28 +68,29 @@ def updateshow():
         for ser in serlist:
             print '#      服务器', ser[0], '负载：', ser[1]
 
-
-sthread = threading.Thread(target=updateshow)
-sthread.setDaemon(True)
-sthread.start()
-
-
-for i in range(100):
-    sthread = threading.Thread(target=receivedata)
+#创建显示线程
+try:
+    sthread = threading.Thread(target=updateshow)
     sthread.setDaemon(True)
     sthread.start()
 
+#创建接收线程
+    for i in range(100):
+        sthread = threading.Thread(target=receivedata)
+        sthread.setDaemon(True)
+        sthread.start()
+except:
+    logging.exception("thread starting Exception Logged")
 
 s = socket.socket()
 s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 s.bind((HOST, PORT))
 s.listen(1)
 while True:
-    conn, addr = s.accept()
-    Qcon.put(conn)
-
-
-
-
-
+    try:
+        conn, addr = s.accept()
+        Qcon.put(conn)
+    except:
+        logging.exception("socket acception Exception Logged")
+        continue
 

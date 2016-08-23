@@ -5,8 +5,12 @@ import struct
 import cv2
 import time
 import Queue
-
+import logging
 QMAX = 500
+
+
+class NoModelResource(Exception):
+    pass
 
 class ModelPro:
     def __init__(self, conn):
@@ -51,13 +55,14 @@ class ModelPro:
                 else:
                     break
             except:
-                conc.sendall("failed")
                 conc.close()
                 break
 ####################################################################加入返回列队
         self.conn.close()
         self.flag = 0
         return
+
+
 
 
 class ModelManage:
@@ -104,16 +109,20 @@ class ModelManage:
             except:
                 continue
 
+
     def put(self, model_name, conn, img):
         self.listmutex.acquire()
-        for model in self.modellist:
-            if model.name[:4] == model_name[:4]:
-                if model.qimpro.qsize() < QMAX:
-                    model.qimpro.put((img, conn))
-                    self.listmutex.release()
-                    return True
-        self.listmutex.release()
-        return False
+        try:
+            for model in self.modellist:
+                if model.name[:4] == model_name[:4]:
+                    if model.qimpro.qsize() < QMAX:
+                        model.qimpro.put((img, conn))
+                        return True
+        except:
+            logging.exception('put exception')
+        finally:
+            self.listmutex.release()
+        raise NoModelResource("No Model")
 
     def checkload(self):
         qlist = list()

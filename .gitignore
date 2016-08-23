@@ -5,3 +5,4 @@ pic/
 *.jpg
 *.pyc
 DPserver/
+*.log
