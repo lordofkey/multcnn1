@@ -7,9 +7,11 @@ import datetime
 import sys
 import struct
 import commands
+import os
 
 
-innerhost = "172.1.10.134"
+workdir = os.getcwd()
+innerhost = "172.1.10.127"
 innerport = 9231
 
 SAVE_IMG = 0
@@ -155,8 +157,12 @@ while True:
     fps.process()
     if(0 == ca_num % 2000):
         picFolder = str(ca_num)
+    filename = workdir + 'pic/' + m_model.name + '/' + m_date + '/' + m_rlt + '/' + picFolder + '/' + str(ca_num) + '.jpg'
     if SAVE_IMG:
         commands.getstatusoutput('mkdir -p pic/' + m_model.name + '/' + m_date + '/' + m_rlt + '/' + picFolder)
-        cv2.imwrite('pic/' + m_model.name + '/' + m_date + '/' + m_rlt + '/' + picFolder + '/' + str(ca_num) + '.jpg', img)
-    s.sendall(m_rlt)
+        cv2.imwrite(filename, img)
+    len_m_rlt = len(m_rlt)
+    len_filename = len(filename)
+    data = struct.pack('=2i' + str(len_m_rlt) + 's' + str(len_filename) + 's', len_m_rlt, len_filename, m_rlt, filename)
+    s.sendall(data)
 s.close()
