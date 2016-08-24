@@ -7,7 +7,7 @@ import time
 import Queue
 import logging
 QMAX = 500
-
+logger = logging.getLogger('TOEClogger')
 
 class NoModelResource(Exception):
     pass
@@ -41,12 +41,13 @@ class ModelPro:
             try:
                 tmp = self.qimpro.get(block=True, timeout=1)
                 img_in = tmp[0]
-                conc = tmp[1]
+                Qpro = tmp[1]
                 img_in = cv2.resize(img_in, (self.width, self.height))
                 self.conn.sendall(img_in.data.__str__())
-                temp_recv = self.conn.recv(128)
-                conc.sendall(temp_recv)
-                conc.close()
+                data = self.conn.recv(128)
+                len1, len2 = struct.unpack("2i",data[:8])
+                m_rlt, adrr = struct.unpack(str(len1) + 's' + str(len2) + 's',data[8:])
+                Qpro.put((m_rlt, adrr))
             except Queue.Empty:
                 self.conn.sendall('are you there?')
                 data = self.conn.recv(3)
@@ -55,7 +56,7 @@ class ModelPro:
                 else:
                     break
             except:
-                conc.close()
+                logger.exception("dpserve exception")
                 break
 ####################################################################加入返回列队
         self.conn.close()
@@ -109,17 +110,16 @@ class ModelManage:
             except:
                 continue
 
-
-    def put(self, model_name, conn, img):
+    def put(self, model_name, img, proQ):
         self.listmutex.acquire()
         try:
             for model in self.modellist:
                 if model.name[:4] == model_name[:4]:
                     if model.qimpro.qsize() < QMAX:
-                        model.qimpro.put((img, conn))
+                        model.qimpro.put((img, proQ))
                         return True
         except:
-            logging.exception('put exception')
+            logger.exception('put exception')
         finally:
             self.listmutex.release()
         raise NoModelResource("No Model")
