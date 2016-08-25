@@ -11,7 +11,7 @@ import os
 
 
 workdir = os.getcwd()
-innerhost = "172.1.10.127"
+innerhost = "172.1.10.134"
 innerport = 9231
 
 SAVE_IMG = 0
