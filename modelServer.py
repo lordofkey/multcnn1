@@ -14,9 +14,11 @@ workdir = os.getcwd()
 innerhost = "172.1.10.134"
 innerport = 9231
 
-SAVE_IMG = 0
+SAVE_IMG = 1
 picFolder = '0'
 
+width = 227
+height = 227
 
 class CycCheck(Exception):
     def __init__(self):
@@ -32,6 +34,7 @@ class models(object):
         self.initmodel(num)
         self.initlabel()
     def initmodel(self, num):
+        global width, height
         dom = xml.dom.minidom.parse('config.xml')
         root = dom.documentElement
         m_mdlnum = root.getElementsByTagName('modelnum')
@@ -47,6 +50,9 @@ class models(object):
             temp_a = caffe.io.caffe_pb2.BlobProto.FromString(proto_data)
             self.mean = caffe.io.blobproto_to_array(temp_a)[0]
             self.net = caffe.Net(self.model_path + 'deploy.prototxt', self.model_path + 'model.caffemodel', caffe.TEST)
+            m_shape = self.net.blobs['data'].data.shape
+            width = m_shape[2]
+            height = m_shape[3]
             print 'caffe done!'
         elif self.type == 'tensorflow':
             import tensorflow as tf
@@ -112,14 +118,12 @@ mn = int(sys.argv[1])
 
 print mn
 m_model = models(mn)
-width = 227
-height = 227
 imglen = width * height
 
 ca_num = 0
 
 s = socket.socket()
-s.connect((innerhost,innerport))
+s.connect((innerhost, innerport))
 name = m_model.name
 name_len = len(name)
 data = struct.pack('=i'+str(name_len)+'s3i', name_len, name, width, height, 3)
@@ -143,6 +147,9 @@ while True:
         img_in = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
         img_in = np.transpose(img_in, [2, 0, 1])
         img_in = img_in.astype(np.float32)
+        img_mean = np.transpose(m_model.mean, [1, 2, 0])
+        img_mean = cv2.resize(img_mean, (width, height))
+        m_model.mean = np.transpose(img_mean, [2, 0, 1])
         img_in -= m_model.mean
         m_model.net.blobs['data'].data[...] = [img_in]
         output = m_model.net.forward()
@@ -157,7 +164,8 @@ while True:
     fps.process()
     if(0 == ca_num % 2000):
         picFolder = str(ca_num)
-    filename = workdir + 'pic/' + m_model.name + '/' + m_date + '/' + m_rlt + '/' + picFolder + '/' + str(ca_num) + '.jpg'
+    filename = workdir + '/pic/' + m_model.name + '/' + m_date + '/' + m_rlt + '/' + picFolder + '/' + str(ca_num) + '.jpg'
+    print filename
     if SAVE_IMG:
         commands.getstatusoutput('mkdir -p pic/' + m_model.name + '/' + m_date + '/' + m_rlt + '/' + picFolder)
         cv2.imwrite(filename, img)

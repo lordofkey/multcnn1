@@ -98,9 +98,9 @@ def updateshow():
 
 #创建显示线程
 try:
-    # sthread = threading.Thread(target=updateshow)
-    # sthread.setDaemon(True)
-    # sthread.start()
+    sthread = threading.Thread(target=updateshow)
+    sthread.setDaemon(True)
+    sthread.start()
 
 #创建接收线程
     for i in range(100):
