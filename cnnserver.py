@@ -1,6 +1,7 @@
 # _*_coding:utf-8_*_
 import socket
 import numpy as np
+import cv2
 import struct
 import Queue
 import threading
@@ -22,7 +23,7 @@ formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(messag
 fh.setFormatter(formatter)
 ch.setFormatter(formatter)
 logger.addHandler(fh)
-logger.addHandler(ch)
+#logger.addHandler(ch)
 
 dbclient = pymongo.MongoClient(host="172.1.10.134")
 Qcon = Queue.Queue(200)
@@ -45,11 +46,19 @@ def receivedata():
             m_rlt = 'failed'
             adrr = 'lost'
             proQ = Queue.Queue()
-            param = conn.recv(PARAM_LEN)
-            conn.sendall('s')
-            width = struct.unpack('Q', conn.recv(8))[0]
-            height = struct.unpack('Q', conn.recv(8))[0]
-            file_size = width * height
+            token = struct.unpack('10s', conn.recv(10))[0]
+
+            if token == "1234567890":
+                buf = struct.pack('i', 1)
+                conn.send(buf)
+            else:
+                buf = struct.pack('i', 0)
+                conn.send(buf)
+                conn.close()
+                return
+            lens = struct.unpack('2i', conn.recv(8))
+            param = struct.unpack(str(lens[0]) + 's', conn.recv(lens[0]))[0]
+            file_size = lens[1]
             recv_size = 0
             data = ''
             while recv_size < file_size:
@@ -60,8 +69,8 @@ def receivedata():
                     temp_recv = conn.recv(file_size - recv_size)
                     data += temp_recv
                 recv_size = len(data)
-            img = np.fromstring(data, dtype=np.uint8)
-            img = img.reshape(height, width)
+            data = np.fromstring(data)
+            img = cv2.imdecode(data, 0)
             mmanager.put(param, img, proQ)
             returnmsg = proQ.get(block=True, timeout=5)
             m_rlt = returnmsg[0]
@@ -98,9 +107,9 @@ def updateshow():
 
 #创建显示线程
 try:
-    sthread = threading.Thread(target=updateshow)
-    sthread.setDaemon(True)
-    sthread.start()
+    # sthread = threading.Thread(target=updateshow)
+    # sthread.setDaemon(True)
+    # sthread.start()
 
 #创建接收线程
     for i in range(100):
