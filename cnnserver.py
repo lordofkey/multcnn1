@@ -28,11 +28,15 @@ logger.addHandler(fh)
 dbclient = pymongo.MongoClient(host="172.1.10.134")
 Qcon = Queue.Queue(200)
 HOST = '0.0.0.0'
-PORT = 8145
+PORT = 8147
 inner_host = '0.0.0.0'
-inner_port = 9231
+inner_port = 9233
 PARAM_LEN = 128
 SAVE_IMG = 1
+httphost = '0.0.0.0'
+httpport = 10102
+
+
 
 try:
     mmanager = dpmanager.ModelManage(inner_host, inner_port)
@@ -47,7 +51,6 @@ def receivedata():
             adrr = 'lost'
             proQ = Queue.Queue()
             token = struct.unpack('10s', conn.recv(10))[0]
-
             if token == "1234567890":
                 buf = struct.pack('i', 1)
                 conn.send(buf)
@@ -69,7 +72,7 @@ def receivedata():
                     temp_recv = conn.recv(file_size - recv_size)
                     data += temp_recv
                 recv_size = len(data)
-            data = np.fromstring(data)
+            data = np.fromstring(data, np.uint8)
             img = cv2.imdecode(data, 0)
             mmanager.put(param, img, proQ)
             returnmsg = proQ.get(block=True, timeout=5)
@@ -94,22 +97,29 @@ def receivedata():
 
 
 def updateshow():
+    sh = socket.socket()
+    sh.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sh.bind((httphost, httpport))
+    sh.listen(1)
     while True:
-        time.sleep(0.2)
-        connum = Qcon.qsize()
-        serlist = mmanager.checkload()
-        os.system('clear')
-
-        print '################################################################################'
-        print '#      接收列队负载：', connum
-        for ser in serlist:
-            print '#      服务器', ser[0], '负载：', ser[1]
-
+        try:
+            conn, addr = sh.accept()
+            connum = Qcon.qsize()
+            serlist = mmanager.checkload()
+            shownum = 1 + serlist.__len__()
+            data = struct.pack('i', shownum)
+            data += struct.pack('=i'+str(len("receivelist"))+'si', len("receivelist"), "receivelist", connum)
+            for ser in serlist:
+                data += struct.pack('=i'+str(len(ser[0]))+'si', len(ser[0]), ser[0], ser[1])
+            conn.sendall(data)
+            conn.close()
+        except:
+            logger.exception("httpserver error")
 #创建显示线程
 try:
-    # sthread = threading.Thread(target=updateshow)
-    # sthread.setDaemon(True)
-    # sthread.start()
+    sthread = threading.Thread(target=updateshow)
+    sthread.setDaemon(True)
+    sthread.start()
 
 #创建接收线程
     for i in range(100):

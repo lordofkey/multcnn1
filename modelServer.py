@@ -12,13 +12,13 @@ import os
 
 workdir = os.getcwd()
 innerhost = "172.1.10.134"
-innerport = 9231
+innerport = 9233
 
 SAVE_IMG = 1
-picFolder = '0'
 
 width = 227
 height = 227
+channel = 3
 
 class CycCheck(Exception):
     def __init__(self):
@@ -34,7 +34,7 @@ class models(object):
         self.initmodel(num)
         self.initlabel()
     def initmodel(self, num):
-        global width, height
+        global width, height, channel
         dom = xml.dom.minidom.parse('config.xml')
         root = dom.documentElement
         m_mdlnum = root.getElementsByTagName('modelnum')
@@ -48,11 +48,13 @@ class models(object):
             caffe.set_mode_gpu()
             proto_data = open(self.model_path + 'mean.binaryproto', 'rb').read()
             temp_a = caffe.io.caffe_pb2.BlobProto.FromString(proto_data)
-            self.mean = caffe.io.blobproto_to_array(temp_a)[0]
+            img_mean = caffe.io.blobproto_to_array(temp_a)[0]
             self.net = caffe.Net(self.model_path + 'deploy.prototxt', self.model_path + 'model.caffemodel', caffe.TEST)
-            m_shape = self.net.blobs['data'].data.shape
-            width = m_shape[2]
-            height = m_shape[3]
+            tm1, channel, width, height = self.net.blobs['data'].data.shape
+ 
+            img_mean = np.transpose(img_mean, [1, 2, 0])
+            img_mean = cv2.resize(img_mean, (width, height))
+            self.mean = np.transpose(img_mean, [2, 0, 1])                  
             print 'caffe done!'
         elif self.type == 'tensorflow':
             import tensorflow as tf
@@ -64,6 +66,7 @@ class models(object):
             gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction = 0.1)
             self.sess = tf.Session(config = tf.ConfigProto(gpu_options = gpu_options))
             saver.restore(self.sess, ckpt.model_checkpoint_path)
+            print saver.as_saver_def()
             print 'tf done!'
         else:
             print 'can not recognized the frame!'
@@ -121,12 +124,13 @@ m_model = models(mn)
 imglen = width * height
 
 ca_num = 0
+picFolder = ''
 
 s = socket.socket()
 s.connect((innerhost, innerport))
 name = m_model.name
 name_len = len(name)
-data = struct.pack('=i'+str(name_len)+'s3i', name_len, name, width, height, 3)
+data = struct.pack('=i'+str(name_len)+'s3i', name_len, name, width, height, channel)
 s.sendall(data)
 data = s.recv(20)
 if data == 'connect secceed':
@@ -147,14 +151,10 @@ while True:
         img_in = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
         img_in = np.transpose(img_in, [2, 0, 1])
         img_in = img_in.astype(np.float32)
-        img_mean = np.transpose(m_model.mean, [1, 2, 0])
-        img_mean = cv2.resize(img_mean, (width, height))
-        m_model.mean = np.transpose(img_mean, [2, 0, 1])
         img_in -= m_model.mean
         m_model.net.blobs['data'].data[...] = [img_in]
         output = m_model.net.forward()
         predictions = output['prob']
-        ca_num += 1
     if m_model.type == 'tensorflow':
         img_in = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
         img_in = img_in.astype(np.float32)
@@ -165,12 +165,12 @@ while True:
     if(0 == ca_num % 2000):
         picFolder = str(ca_num)
     filename = workdir + '/pic/' + m_model.name + '/' + m_date + '/' + m_rlt + '/' + picFolder + '/' + str(ca_num) + '.jpg'
-    print filename
     if SAVE_IMG:
         commands.getstatusoutput('mkdir -p pic/' + m_model.name + '/' + m_date + '/' + m_rlt + '/' + picFolder)
         cv2.imwrite(filename, img)
     len_m_rlt = len(m_rlt)
     len_filename = len(filename)
     data = struct.pack('=2i' + str(len_m_rlt) + 's' + str(len_filename) + 's', len_m_rlt, len_filename, m_rlt, filename)
-    s.sendall(data)
+    s.send(data)
+    ca_num += 1
 s.close()
