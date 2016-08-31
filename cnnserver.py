@@ -28,7 +28,7 @@ logger.addHandler(fh)
 dbclient = pymongo.MongoClient(host="172.1.10.134")
 Qcon = Queue.Queue(200)
 HOST = '0.0.0.0'
-PORT = 8147
+PORT = 8145
 inner_host = '0.0.0.0'
 inner_port = 9233
 PARAM_LEN = 128

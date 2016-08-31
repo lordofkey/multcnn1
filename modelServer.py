@@ -66,7 +66,6 @@ class models(object):
             gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction = 0.1)
             self.sess = tf.Session(config = tf.ConfigProto(gpu_options = gpu_options))
             saver.restore(self.sess, ckpt.model_checkpoint_path)
-            print saver.as_saver_def()
             print 'tf done!'
         else:
             print 'can not recognized the frame!'
